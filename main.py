@@ -3,50 +3,56 @@
 from ppadb.client import Client as AdbClient
 import paho.mqtt.client as mqtt
 from os import environ as env
+import logging
 
-adbServer = env.get('ADB_SERVER') or "localhost"
-print("Using adb server: " + adbServer)
 
-client = AdbClient(host="192.168.1.5", port=5037)
+def main():
+    logging.basicConfig(level=logging.INFO)
 
-client.remote_connect("192.168.1.75", 5555)
+    broker_host = env.get('BROKER_HOST') or "localhost"
+    broker_port = env.get('BROKER_PORT') or 1883
+    server_host = env.get('ADB_SERVER_HOST') or "localhost"
+    server_port = env.get('ADB_SERVER_PORT') or 5037
+    device_host = env.get('ADB_DEVICE_HOST') or "localhost"
+    device_port = env.get('ADB_DEVICE_PORT') or 5555
+    topic = env.get('MQTT_TOPIC') or "dash_control"
 
-device = client.device("192.168.1.75:5555")
+    logging.info("Using adb server: %s:%s", server_host, server_port)
 
-# The callback for when the client receives a CONNACK response from the server.
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
+    client = AdbClient(host=server_host, port=server_port)
 
-    # Subscribing in on_connect() means that if we lose the connection and
-    # reconnect then subscriptions will be renewed.
-    client.subscribe("dashboard_control/#")
+    client.remote_connect(device_host, device_port)
 
-    client.message_callback_add("dashboard_control/screen/state", on_screen_message)
+    device = client.device(device_host + ":" + str(device_port))
 
-    client.publish("dashboard_control/status", payload="online")
+    def on_connect(client, userdata, flags, rc):
+        logging.info("Connected to adb device: %s:%s", device_host, device_port)
 
-# The callback for when a PUBLISH message is received from the server.
-def on_message(client, userdata, msg):
-    print(msg.topic+" "+str(msg.payload))
+        client.subscribe(topic + "/#")
 
-def on_screen_message(client, userdata, msg):
-    print(msg.topic + " " + str(msg.payload))
+        client.message_callback_add(topic + "/screen/state", on_screen_message)
 
-    if msg.topic == "dashboard_control/screen/state":
-        print(str(msg.payload))
-        if str(msg.payload) == "on":
+        client.publish(topic + "/status", payload="online")
+
+    def on_message(client, userdata, msg):
+        logging.info("%s %s", msg.topic, msg.payload)
+
+    def on_screen_message(client, userdata, msg):
+        if msg.payload == b'on':
+            logging.info("Wake up")
             device.shell("input keyevent KEYCODE_WAKEUP")
+            client.publish(topic + "/screen/state")
         else:
+            logging.info("Power off screen")
             device.shell("input keyevent KEYCODE_POWER")
 
-client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
-client.will_set("dashboard_control/status", payload="offline")
-client.connect("192.168.1.5", 1883, 60)
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.will_set(topic + "/status", payload="offline")
+    client.connect(broker_host, broker_port, 60)
 
-# Blocking call that processes network traffic, dispatches callbacks and
-# handles reconnecting.
-# Other loop*() functions are available that give a threaded interface and a
-# manual interface.
-client.loop_forever()
+    client.loop_forever()
+
+if __name__ == '__main__':
+    main()
