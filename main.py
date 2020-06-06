@@ -4,7 +4,7 @@ from ppadb.client import Client as AdbClient
 import paho.mqtt.client as mqtt
 from os import environ as env
 import logging
-
+import json
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -15,9 +15,16 @@ def main():
     server_port = env.get('ADB_SERVER_PORT') or 5037
     device_host = env.get('ADB_DEVICE_HOST') or "localhost"
     device_port = env.get('ADB_DEVICE_PORT') or 5555
+    ha_topic = env.get('HA_TOPIC') or 'homeassistant'
     topic = env.get('MQTT_TOPIC') or "dash_control"
+    device_name = env.get('DEVICE_NAME') or "Dashboard Screen"
 
     logging.info("Using adb server: %s:%s", server_host, server_port)
+
+    availability_topic = topic + "/status"
+    state_topic = topic + "/switch/screen/state"
+    config_topic = ha_topic + "/switch/" + topic + "/screen/confg"
+    command_topic = topic + "/switch/screen/command"
 
     client = AdbClient(host=server_host, port=server_port)
 
@@ -30,29 +37,49 @@ def main():
 
         client.subscribe(topic + "/#")
 
-        client.message_callback_add(topic + "/screen/state", on_screen_message)
+        client.message_callback_add(state_topic, on_screen_message)
 
-        client.publish(topic + "/status", payload="online")
+        client.publish(availability_topic, payload="online")
+        ha_discover(client)
 
     def on_message(client, userdata, msg):
         logging.info("%s %s", msg.topic, msg.payload)
 
     def on_screen_message(client, userdata, msg):
         if msg.payload == b'on':
-            logging.info("Wake up")
+            logging.info("Wake up screen")
             device.shell("input keyevent KEYCODE_WAKEUP")
             client.publish(topic + "/screen/state")
         else:
             logging.info("Power off screen")
             device.shell("input keyevent KEYCODE_POWER")
 
+    def ha_discover(client):
+        config = {
+            "name": device_name,
+            "state_topic": state_topic,
+            "command_topic": command_topic,
+            "availability_topic": availability_topic,
+            "unique_id": state_topic + "_screen",
+            "device": {
+                "identifiers": "840d8e64fbe1",
+                "name": device_name,
+                "sw_version": "1",
+                "model": "mqtt2adb",
+                "manufacturer": "kubiq"
+            }
+        }
+        client.publish(config_topic, payload=json.dumps(config), retain=True)
+
+
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.will_set(topic + "/status", payload="offline")
+    client.will_set(availability_topic, payload="offline")
     client.connect(broker_host, broker_port, 60)
 
     client.loop_forever()
+
 
 if __name__ == '__main__':
     main()
