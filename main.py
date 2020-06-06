@@ -24,7 +24,7 @@ def main():
     availability_topic = topic + "/status"
     state_topic = topic + "/switch/screen/state"
     config_topic = ha_topic + "/switch/" + topic + "/screen/config"
-    command_topic = topic + "/switch/screen/set"
+    command_topic = topic + "/switch/screen/command"
 
     client = AdbClient(host=server_host, port=server_port)
 
