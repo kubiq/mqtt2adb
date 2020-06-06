@@ -35,17 +35,17 @@ def main():
     def on_connect(client, userdata, flags, rc):
         logging.info("Connected to adb device: %s:%s", device_host, device_port)
 
-        client.message_callback_add(command_topic, on_command)
+        client.subscribe(topic + "/#")
 
         client.publish(availability_topic, payload="online", retain=True)
         client.publish(state_topic, payload="OFF", retain=True)
         ha_discover(client)
 
-    def on_message(client, userdata, msg):
-        logging.info("%s %s", msg.topic, msg.payload)
-
     def on_command(client, userdata, msg):
-        if msg.payload == b'on':
+        command = msg.payload.lower()
+        logging.info("Command: %s", command)
+
+        if command == b'on':
             logging.info("Wake up screen")
             device.shell("input keyevent KEYCODE_WAKEUP")
             client.publish(state_topic, payload="ON", retain=True)
@@ -74,7 +74,7 @@ def main():
 
     client = mqtt.Client()
     client.on_connect = on_connect
-    client.on_message = on_message
+    client.message_callback_add(command_topic, on_command)
     client.will_set(availability_topic, payload="offline")
     client.connect(broker_host, broker_port, 60)
 
