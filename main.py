@@ -4,8 +4,8 @@ from ppadb.client import Client as AdbClient
 import paho.mqtt.client as mqtt
 from os import environ as env
 
-adbServer = env.get('ADB_SERVER')
-print(adbServer)
+adbServer = env.get('ADB_SERVER') or "localhost"
+print("Using adb server: " + adbServer)
 
 client = AdbClient(host="192.168.1.5", port=5037)
 
