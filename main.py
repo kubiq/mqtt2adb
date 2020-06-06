@@ -24,7 +24,7 @@ def main():
     availability_topic = topic + "/status"
     state_topic = topic + "/switch/screen/state"
     config_topic = ha_topic + "/switch/" + topic + "/screen/config"
-    command_topic = topic + "/switch/screen/command"
+    command_topic = topic + "/switch/screen/set"
 
     client = AdbClient(host=server_host, port=server_port)
 
@@ -35,12 +35,10 @@ def main():
     def on_connect(client, userdata, flags, rc):
         logging.info("Connected to adb device: %s:%s", device_host, device_port)
 
-        client.subscribe(topic + "/#")
-
         client.message_callback_add(command_topic, on_command)
 
-        client.publish(availability_topic, payload="online")
-        client.publish(state_topic, payload="off")
+        client.publish(availability_topic, payload="online", retain=True)
+        client.publish(state_topic, payload="OFF", retain=True)
         ha_discover(client)
 
     def on_message(client, userdata, msg):
@@ -50,11 +48,11 @@ def main():
         if msg.payload == b'on':
             logging.info("Wake up screen")
             device.shell("input keyevent KEYCODE_WAKEUP")
-            client.publish(state_topic, payload="on")
+            client.publish(state_topic, payload="ON", retain=True)
         else:
             logging.info("Power off screen")
             device.shell("input keyevent KEYCODE_POWER")
-            client.publish(state_topic, payload="off")
+            client.publish(state_topic, payload="OFF", retain=True)
 
     def ha_discover(client):
         config = {
