@@ -61,6 +61,7 @@ def main():
             "command_topic": command_topic,
             "availability_topic": availability_topic,
             "unique_id": state_topic + "_screen",
+            "icon": "mdi:monitor",
             "device": {
                 "identifiers": "840d8e64fbe1",
                 "name": device_name,
