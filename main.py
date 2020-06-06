@@ -37,22 +37,24 @@ def main():
 
         client.subscribe(topic + "/#")
 
-        client.message_callback_add(state_topic, on_screen_message)
+        client.message_callback_add(command_topic, on_command)
 
         client.publish(availability_topic, payload="online")
+        client.publish(state_topic, payload="off")
         ha_discover(client)
 
     def on_message(client, userdata, msg):
         logging.info("%s %s", msg.topic, msg.payload)
 
-    def on_screen_message(client, userdata, msg):
+    def on_command(client, userdata, msg):
         if msg.payload == b'on':
             logging.info("Wake up screen")
             device.shell("input keyevent KEYCODE_WAKEUP")
-            client.publish(topic + "/screen/state")
+            client.publish(state_topic, payload="on")
         else:
             logging.info("Power off screen")
             device.shell("input keyevent KEYCODE_POWER")
+            client.publish(state_topic, payload="off")
 
     def ha_discover(client):
         config = {
